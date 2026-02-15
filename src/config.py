@@ -4,3 +4,6 @@ patch_size = 64
 device_name = "mps"
 results_path = r"results/result.npz"
 model_path = r"results/model.pth"
+sample_path = r"data/sample/0784.png"
+sample_dir = r"data/sample/"
+scs_solver_08alpha_model = r"results/model_scs_solver_08Alpha.pth"
