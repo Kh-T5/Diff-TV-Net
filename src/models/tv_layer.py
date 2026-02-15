@@ -39,6 +39,7 @@ class DifferentiableTVLayer(nn.Module):
 
     def forward(self, f, lam):
         """
+        Forward pass in the CVXPY layer using SCS solver.
         Inputs:
             f (torch.Tensor): Noisy image tensor of shape (Batch, H, W).
             lam (torch.Tensor): Regularization map of shape (Batch, H, W).
@@ -46,5 +47,13 @@ class DifferentiableTVLayer(nn.Module):
         Returns:
             torch.Tensor: Optimal solution U* (denoised image) of shape (Batch, H, W).
         """
+        orig_device = f.device
+        f_cpu = f.to("cpu").to(torch.float32)
+        lam_cpu = lam.to("cpu").to(torch.float32)
 
-        return self.cvx_layer(f, lam)[0]
+        solver_info = {"solve_method": cp.SCS, "max_iters": 2000, "eps": 1e-4}
+        result = self.cvx_layer(f_cpu, lam_cpu, solver_args=solver_info)[0].to(
+            torch.float32
+        )
+
+        return result.to(orig_device)

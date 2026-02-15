@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import torch.nn as nn
 from src.models.tv_layer import DifferentiableTVLayer
+import torch
 
 
 class TVDenoisingNet(nn.Module):
@@ -49,3 +50,19 @@ class TVDenoisingNet(nn.Module):
         denoised = self.tv_layer(f, lam_map)
 
         return denoised.unsqueeze(1), lam_map
+
+    def to(self, *args, **kwargs):
+        """
+        Encountered hardware problems, this is to ensure that optimization layer is not put on
+        Apple Sillicon GPU which is not supported, therefore only "classic" layers like the CNN
+        at the start is switched to the gpu.
+        """
+        device = torch._C._nn._parse_to(*args, **kwargs)[0]
+        if device is not None and device.type == "mps":
+            for name, module in self.named_children():
+                if name != "tv_layer":
+                    module.to(device)
+                else:
+                    module.to("cpu")
+            return self
+        return super().to(*args, **kwargs)
