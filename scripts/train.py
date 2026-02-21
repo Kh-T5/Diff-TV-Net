@@ -4,10 +4,11 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import argparse
 import os
+import time
 
 from src.models.nn_hybrid import TVDenoisingNet
 from src.utils.trainer import train_one_epoch
-from src.utils.evaluation import evaluate
+from src.utils.evaluation import evaluate, save_debug_plot
 from src.data.dataset import GaussianDenoisingDataset
 from src.config import (
     data_dir,
@@ -16,19 +17,26 @@ from src.config import (
     device_name,
     results_path,
     model_path,
+    plots_dir,
 )
 
 
 def main(args):
     """
-    Runs the training of our model on BDS500 data.
+    Runs the training of our model on DIV2K data.
     """
+
     histories = {"loss": [], "mse": [], "ssim": []}
     device = torch.device(device_name if torch.mps.is_available() else "cpu")
     print(f"Device used: {device}\n")
 
-    model = TVDenoisingNet(img_size=(patch_size, patch_size))
+    model = TVDenoisingNet(reg=args.reg, img_size=(patch_size, patch_size))
     model = model.to(torch.float32)
+    if os.path.exists(model_path):
+        state_dict = torch.load(model_path, map_location="cpu")
+        model.load_state_dict(state_dict)
+        print("Saved weights loaded.")
+
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -37,32 +45,55 @@ def main(args):
     training_dir = os.path.join(data_dir, "train")
     train_dataset = GaussianDenoisingDataset(training_dir, patch_size, gaussian_std)
     loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+
+    validation_dir = os.path.join(data_dir, "val")
+    val_dataset = GaussianDenoisingDataset(validation_dir, patch_size, gaussian_std)
+    val_loader = DataLoader(
+        val_dataset, batch_size=int(3 * args.batch_size), shuffle=False
+    )
+
     print("Train Loader initialized.")
 
     print(f"Starting Training | SSIM: {args.use_ssim} | Alpha: {args.alpha}")
 
     for epoch in range(args.epochs):
+        start_t = time.time()
         epoch_loss = train_one_epoch(
             model, loader, optimizer, device, args.alpha, args.use_ssim
         )
         histories["loss"].append(epoch_loss)
         scheduler.step(epoch_loss)
-        print(f"Epoch {epoch+1}/{args.epochs} - Loss: {epoch_loss:.6f}")
+        delta_t = time.time() - start_t
+        print(
+            f"Epoch {epoch+1}/{args.epochs} - Loss: {epoch_loss:.6f} - in {delta_t:.2f} s"
+        )
 
-        if (epoch + 1) % 10 == 0:
-            validation_dir = os.path.join(data_dir, "val")
-            val_dataset = GaussianDenoisingDataset(
-                validation_dir, patch_size, gaussian_std
-            )
-            val_loader = DataLoader(
-                val_dataset, batch_size=int(3 * args.batch_size), shuffle=False
-            )
+        if (epoch + 1) % 5 == 0:
+
             val_metrics = evaluate(model, val_loader, device)
             print(
-                f"Validation MSE: {val_metrics['mse']:.2f} | SSIM: {val_metrics['ssim']:.4f}"
+                f"Validation MSE: {val_metrics['mse']:.4f} | SSIM: {val_metrics['ssim']:.4f}"
             )
             histories["mse"].append(val_metrics["mse"])
             histories["ssim"].append(val_metrics["ssim"])
+            torch.save(model.state_dict(), model_path)
+
+            sample_noisy, sample_clean = next(iter(val_loader))
+            sample_noisy, sample_clean = sample_noisy.to(device), sample_clean.to(
+                device
+            )
+
+            model.eval()
+            with torch.no_grad():
+                sample_denoised, sample_lam = model(sample_noisy)
+                save_debug_plot(
+                    sample_noisy,
+                    sample_denoised,
+                    sample_lam,
+                    sample_clean,
+                    epoch,
+                    plots_dir,
+                )
 
     np.savez(results_path, **histories, config=vars(args))
     torch.save(model.state_dict(), model_path)
@@ -71,9 +102,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TV-Opti-Net Training")
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument(
         "--alpha", type=float, default=0.8, help="Weight for MSE in dual-loss"
     )
@@ -82,6 +113,12 @@ if __name__ == "__main__":
         default=True,
         action="store_true",
         help="Toggle SSIM loss component",
+    )
+    parser.add_argument(
+        "--reg",
+        type=str,
+        default="isotropic",
+        help="Regularization to use in optimization problem, isotropic or anisotropic",
     )
 
     args = parser.parse_args()

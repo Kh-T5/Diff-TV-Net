@@ -36,11 +36,14 @@ def train_one_epoch(
         optimizer.zero_grad()
 
         denoised, _ = model(noisy)
+        denoised = denoised.to(device)
+        denoised_crop = denoised[..., 2:-2, 2:-2]
+        clean_crop = clean[..., 2:-2, 2:-2]
 
-        mse_loss = nn.functional.mse_loss(denoised, clean)
+        mse_loss = nn.functional.mse_loss(denoised_crop, clean_crop)
 
         if use_ssim:
-            ssim_val = ssim(denoised, clean, data_range=1.0)
+            ssim_val = ssim(denoised_crop, clean_crop, data_range=1.0)
             loss = alpha * mse_loss + (1 - alpha) * (1 - ssim_val)
         else:
             loss = mse_loss

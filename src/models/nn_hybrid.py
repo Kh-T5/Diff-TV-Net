@@ -13,25 +13,34 @@ class TVDenoisingNet(nn.Module):
         Differentiable TV Layer: Solves the optimization problem to produce the denoised image.
     """
 
-    def __init__(self, img_size: tuple[int, int] = (64, 64)):
+    def __init__(self, reg: str, img_size: tuple[int, int] = (64, 64)):
         """
         Initalize the neural network.
         Inputs:
             img_size (tuple): Dimensions (H, W) for the optimization problem.
+            reg (str): regularization to use in optimization problem.
         """
         super().__init__()
         self.h, self.w = img_size
 
         self.weight_predictor = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
+            nn.Conv2d(1, 16, kernel_size=3, padding=1, padding_mode="replicate"),
             nn.ReLU(inplace=True),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1, padding_mode="replicate"),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 1, kernel_size=3, padding=1),
+            nn.Conv2d(32, 1, kernel_size=3, padding=1, padding_mode="replicate"),
             nn.Softplus(),
         )
+        self.tv_layer = DifferentiableTVLayer(self.h, self.w, reg)
+        self._initialize_weights()
 
-        self.tv_layer = DifferentiableTVLayer(self.h, self.w)
+    def _initialize_weights(self):
+        """
+        Initializes the final layer so lambda starts small (~0.05).
+        """
+        final_conv = self.weight_predictor[-2]
+        nn.init.constant_(final_conv.bias, -3.0)
+        nn.init.zeros_(final_conv.weight)
 
     def forward(self, x):
         """
@@ -43,10 +52,8 @@ class TVDenoisingNet(nn.Module):
             denoised (torch.Tensor): Denoised output, shape (Batch, 1, H, W).
             lam_map (torch.Tensor): The learned regularization map, shape (Batch, H, W).
         """
-        f = x.squeeze(1)
-
+        f = x.squeeze(dim=1)
         lam_map = self.weight_predictor(x).squeeze(1)
-
         denoised = self.tv_layer(f, lam_map)
 
         return denoised.unsqueeze(1), lam_map
@@ -58,11 +65,10 @@ class TVDenoisingNet(nn.Module):
         at the start is switched to the gpu.
         """
         device = torch._C._nn._parse_to(*args, **kwargs)[0]
+
         if device is not None and device.type == "mps":
-            for name, module in self.named_children():
-                if name != "tv_layer":
-                    module.to(device)
-                else:
-                    module.to("cpu")
+            self.weight_predictor.to(device)
+            self.tv_layer.to("cpu")
             return self
+
         return super().to(*args, **kwargs)
