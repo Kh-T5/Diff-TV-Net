@@ -31,7 +31,7 @@ def evaluate(model, loader, device):
     return {"mse": total_mse / num_batches, "ssim": total_ssim / num_batches}
 
 
-def save_debug_plot(noisy, denoised, lam_map, clean, epoch, path):
+def save_debug_plot(noisy, denoised, lam_map, clean, epoch, path, solver):
     """
     Saves a side-by-side comparison to verify spatial adaptivity.
     This is to visualize what the CNN is actively learning during training, better understand what's happening
@@ -59,5 +59,5 @@ def save_debug_plot(noisy, denoised, lam_map, clean, epoch, path):
     for ax in axes:
         ax.axis("off")
 
-    plt.savefig(f"{path}/epoch_{epoch+1}_check.png")
+    plt.savefig(f"{path}/epoch_{epoch+1}_check_{solver}.png")
     plt.close()

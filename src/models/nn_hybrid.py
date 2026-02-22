@@ -13,7 +13,13 @@ class TVDenoisingNet(nn.Module):
         Differentiable TV Layer: Solves the optimization problem to produce the denoised image.
     """
 
-    def __init__(self, reg: str, img_size: tuple[int, int] = (64, 64)):
+    def __init__(
+        self,
+        reg: str,
+        solver_info: dict,
+        solver: str,
+        img_size: tuple[int, int] = (64, 64),
+    ):
         """
         Initalize the neural network.
         Inputs:
@@ -31,7 +37,7 @@ class TVDenoisingNet(nn.Module):
             nn.Conv2d(32, 1, kernel_size=3, padding=1, padding_mode="replicate"),
             nn.Softplus(),
         )
-        self.tv_layer = DifferentiableTVLayer(self.h, self.w, reg)
+        self.tv_layer = DifferentiableTVLayer(self.h, self.w, reg, solver, solver_info)
         self._initialize_weights()
 
     def _initialize_weights(self):
