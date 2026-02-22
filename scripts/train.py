@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import argparse
 import os
 import time
+import cvxpy as cp
 
 from src.models.nn_hybrid import TVDenoisingNet
 from src.utils.trainer import train_one_epoch
@@ -18,6 +19,8 @@ from src.config import (
     results_path,
     model_path,
     plots_dir,
+    scs_info,
+    CLARABEL_info,
 )
 
 
@@ -30,7 +33,22 @@ def main(args):
     device = torch.device(device_name if torch.mps.is_available() else "cpu")
     print(f"Device used: {device}\n")
 
-    model = TVDenoisingNet(reg=args.reg, img_size=(patch_size, patch_size))
+    if args.solver == "CLARABEL":
+        solver = cp.CLARABEL
+        solver_info = CLARABEL_info
+    elif args.solver == "SCS":
+        solver = cp.SCS
+        solver_info = scs_info
+    else:
+        raise KeyError(f"Sovler {args.solver} not recognized")
+
+    print(f"SOLVER LOADED: {solver}")
+    model = TVDenoisingNet(
+        reg=args.reg,
+        solver=solver,
+        solver_info=solver_info,
+        img_size=(patch_size, patch_size),
+    )
     model = model.to(torch.float32)
     if os.path.exists(model_path):
         state_dict = torch.load(model_path, map_location="cpu")
@@ -93,6 +111,7 @@ def main(args):
                     sample_clean,
                     epoch,
                     plots_dir,
+                    solver=solver,
                 )
 
     np.savez(results_path, **histories, config=vars(args))
@@ -102,9 +121,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TV-Opti-Net Training")
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument(
         "--alpha", type=float, default=0.8, help="Weight for MSE in dual-loss"
     )
@@ -119,6 +138,12 @@ if __name__ == "__main__":
         type=str,
         default="isotropic",
         help="Regularization to use in optimization problem, isotropic or anisotropic",
+    )
+    parser.add_argument(
+        "--solver",
+        type=str,
+        default=cp.SCS,
+        help="Solver to use in optimization layer",
     )
 
     args = parser.parse_args()
