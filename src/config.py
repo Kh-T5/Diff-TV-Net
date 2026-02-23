@@ -4,6 +4,7 @@ device_name = "mps"
 ### DATA CONFIG
 gaussian_std = 25
 patch_size = 64
+BENCHMARK_PATCH_SIZE = 64
 
 ### Optimization config
 scs_info = {"max_iters": 400, "eps": 5e-3}

@@ -1,9 +1,9 @@
 # Diff-TV-Net
 
 A PyTorch implementation of **Differentiable Total Variation Denoising** using `cvxpylayers`. 
-`cvxpylayers` is a package developed by Akshay Agrawal & al and introduced in "Differentiable Convex Optimization Layers". It allows for DPP convex problems to be fully integrated into a NeuralNetwork layer and allows for backpropagation. It also performs the canonicalization internally.
+`cvxpylayers` is a package developed by Akshay Agrawal & al and introduced in "Differentiable Convex Optimization Layers". It allows to embed convex optimization solver directly within a layer compatible with frameworks like **Pytorch**. Therefore, a prior **neural network backbone** can backpropagate the loss of the optimization layer output.
 
-This project integrates classic convex optimization into a deep learning pipeline to learn spatially-adaptive regularization parameters. By leveraging the **Implicit Function Theorem** on the KKT conditions, the network backpropagates through the optimization solver to update a CNN that predicts the optimal $\Lambda$ (lambda) map for any given noisy input.
+This project integrates classic convex optimization into a deep learning pipeline to learn spatially-adaptive regularization parameters. By leveraging the **Implicit Function Theorem** on the KKT conditions written in `cvxpylayers`, the network backpropagates through the optimization solver to update a CNN that predicts the optimal $\Lambda$ (lambda) map pixel-wise for a given grayscale image.
 
 ---
 
