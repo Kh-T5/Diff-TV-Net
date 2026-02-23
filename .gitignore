@@ -184,3 +184,5 @@ data/*
 !data/
 !data/sample/
 test.ipynb
+results/plots/training_checks
+results/plots/anisotropic/lambda_map_learnt_scs_anisotropic.png
