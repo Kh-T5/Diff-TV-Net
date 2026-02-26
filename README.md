@@ -63,7 +63,7 @@ conda env create -f env.yaml
 conda activate cv-opti-nn
 
 ```
-
+For training purposes, user should download DIV2K datasets (train, val, test) in data/DIV2K/
 ### 2. Hardware Acceleration
 
 The pipeline is optimized for **Apple Silicon (MPS)**:
